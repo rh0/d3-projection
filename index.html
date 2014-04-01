@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<style>
+
+.land {
+  fill: #aaa;
+}
+
+.county-boundary {
+  fill: none;
+  stroke: #fff;
+  stroke-width: .5px;
+}
+
+.state-boundary {
+  fill: none;
+  stroke: #fff;
+}
+
+div.tooltip {
+  position: absolute;
+  text-align: center;
+  padding: 2px 5px;
+  font: 12px sans-serif;
+  background: lightsteelblue;
+  border: 0px;
+  border-radius: 8px;
+  pointer-events: none;
+}
+
+.overlay {
+  fill: none;
+  pointer-events: all;
+}
+
+</style>
+<body>
+<script src="http://d3js.org/d3.v3.min.js" charset="utf-8"></script>
+<script src="http://d3js.org/topojson.v1.min.js"></script>
+<script>
+
+var width = 960,
+    height = 500;
+
+var projection = d3.geo.albersUsa()
+    .scale(1000)
+    .translate([width / 2, height / 2]);
+
+var path = d3.geo.path()
+    .projection(projection);
+
+var svg = d3.select("body").append("svg")
+    .attr("width", width)
+    .attr("height", height);
+
+var features = svg.append("g");
+
+var div = d3.select("body").append("div")
+    .attr("class", "tooltip")
+    .style("opacity", 0);
+
+d3.json("us.json", function(error, us) {
+  d3.csv("cities.csv", function(err, data) {
+    var zoom = d3.behavior.zoom()
+        .translate([0,0])
+        .scale(1)
+        .scaleExtent([1,10])
+        .on("zoom", zoomed);
+
+    svg.append("rect")
+        .attr("class", "overlay")
+        .attr("width", width)
+        .attr("height", height)
+        .call(zoom);
+
+    var pin = features.selectAll("image")
+              .data(data)
+              .enter()
+              .append("svg:image")
+              .attr("xlink:href", "pin.png")
+              .attr("class", "pin")
+              .attr("width", 16)
+              .attr("height", 18)
+              .attr("transform", transform)
+              .on("mouseover", function(d) {
+                console.log("beep boop");
+                div.transition(200)
+                  .duration(200)
+                  .style("opacity", .9);
+                div.html(d.city + ', ' + d.state)
+                  .style("left", (d.position[0] + 25) + "px")
+                  .style("top", (d.position[1]) + "px");
+              })
+              .on("mouseout", function(d) {
+                div.transition()
+                  .duration(500)
+                  .style("opacity", 0);
+              });
+
+    function zoomed() {
+      features.attr("transform", "translate(" + d3.event.translate + ")scale(" + d3.event.scale + ")");
+      features.select(".land")
+              .style("stroke-width", 1.5 / d3.event.scale + "px");
+      features.select(".state-boundary")
+              .style("stroke-width", .5 / d3.event.scale + "px");
+      pin.attr("width", 16 / d3.event.scale)
+          .attr("height", 18 / d3.event.scale)
+          .attr("transform", function(d) {
+              coords = [+(-d.lon), +d.lat];
+              var position = projection(coords);
+              d.position = position;
+              return "translate(" + (position[0] - (8 / d3.event.scale)) + "," + (position[1]-(18 / d3.event.scale)) + ")";
+            });
+    }
+
+  });
+
+  features.insert("path", ".graticule")
+      .datum(topojson.feature(us, us.objects.land))
+      .attr("class", "land")
+      .attr("d", path);
+
+  /*svg.insert("path", ".graticule")
+      .datum(topojson.mesh(us, us.objects.counties, function(a, b) { return a !== b && !(a.id / 1000 ^ b.id / 1000); }))
+      .attr("class", "county-boundary")
+      .attr("d", path);*/
+
+  features.insert("path", ".graticule")
+      .datum(topojson.mesh(us, us.objects.states, function(a, b) { return a !== b; }))
+      .attr("class", "state-boundary")
+      .attr("d", path);
+
+});
+
+function transform(d) {
+  coords = [+(-d.lon), +d.lat];
+  var position = projection(coords);
+  d.position = position;
+  return "translate(" + (position[0] - 8) + "," + (position[1]-18) + ")";
+}
+
+d3.select(self.frameElement).style("height", height + "px");
+
+</script>
